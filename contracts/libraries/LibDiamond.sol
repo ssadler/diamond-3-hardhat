@@ -38,6 +38,8 @@ library LibDiamond {
         mapping(bytes4 => bool) supportedInterfaces;
         // owner of the contract
         address contractOwner;
+        // immutable facets
+        mapping(address => bool) immutableFacets;
     }
 
     function diamondStorage() internal pure returns (DiamondStorage storage ds) {
@@ -118,6 +120,7 @@ library LibDiamond {
         for (uint256 selectorIndex; selectorIndex < _functionSelectors.length; selectorIndex++) {
             bytes4 selector = _functionSelectors[selectorIndex];
             address oldFacetAddress = ds.selectorToFacetAndPosition[selector].facetAddress;
+            require(!ds.immutableFacets[oldFacetAddress], "LibDiamondCut: Can't replace function on immutable facet");
             require(oldFacetAddress != _facetAddress, "LibDiamondCut: Can't replace function with same function");
             removeFunction(ds, oldFacetAddress, selector);
             addFunction(ds, selector, selectorPosition, _facetAddress);
@@ -133,6 +136,7 @@ library LibDiamond {
         for (uint256 selectorIndex; selectorIndex < _functionSelectors.length; selectorIndex++) {
             bytes4 selector = _functionSelectors[selectorIndex];
             address oldFacetAddress = ds.selectorToFacetAndPosition[selector].facetAddress;
+            require(!ds.immutableFacets[oldFacetAddress], "LibDiamondCut: Can't remove function on immutable facet");
             removeFunction(ds, oldFacetAddress, selector);
         }
     }
@@ -200,6 +204,15 @@ library LibDiamond {
                 revert InitializationFunctionReverted(_init, _calldata);
             }
         }
+    }
+
+    function setImmutableFacet(address facet) internal {
+        LibDiamond.DiamondStorage storage ds = LibDiamond.diamondStorage();
+        require(
+            ds.facetFunctionSelectors[facet].functionSelectors.length > 0,
+            "LibDiamond: no function selects for address"
+        );
+        ds.immutableFacets[facet] = true;
     }
 
     function enforceHasContractCode(address _contract, string memory _errorMessage) internal view {
